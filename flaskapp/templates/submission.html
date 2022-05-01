@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<script type="text/javascript" src="https://d3js.org/d3.v5.js"></script>
+<style>
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    text-align: center;
+    font-family: Arial, Helvetica, sans-serif;
+  }
+
+  .topnav {
+    overflow: hidden;
+    background-color: #7690e9;
+  }
+
+  .topnav input[type=text] {
+    margin: 0 auto;
+    display: inline-block;
+    margin-top: 6px;
+    margin-bottom: 6px;
+  }
+
+  .topnav input[type=text] {
+    border: 1px solid #ccc;
+  }
+
+  path.link {
+    fill: none;
+    stroke: rgb(27, 27, 27);
+  }
+
+  path.link.grey {
+    stroke-width: 3.0px;
+    stroke: rgb(133, 130, 130);
+  }
+
+  path.link.green {
+    stroke-width: 1.5px;
+    stroke: rgb(25, 221, 146);
+    stroke-dasharray: 5, 3;
+  }
+
+  circle {
+    fill: #ccc;
+    stroke: #fff;
+    stroke: black;
+    stroke-width: 1.5px;
+  }
+
+  text {
+    fill: #000;
+    font: 15px sans-serif;
+    pointer-events: none;
+  }
+
+  .line {
+    fill: none;
+    stroke: steelblue;
+    stroke-width: 2px;
+  }
+</style>
+<div class="topnav">
+  <a>Query</a>
+  <input type="text" id="search" placeholder="Search.." value="covid19 mental health" size="80">
+  <button type="submit" id="submitButton"><i class="fa fa-search"></i></button>
+</div>
+
+<!-- Load icon library -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+
+
+<div id="my_dataviz"></div>
+</div>
+
+<head>
+  <title></title>
+</head>
+
+<body>
+  <a href="/static/LDA_Visualization.html"></a>
+  <div id="progress"></div>   
+
+  <script>
+    var submissionData = '';
+
+
+    /* d3.json("Nodes-edges-example.json", function(data) {
+        data.forEach(function(d) {
+        d.ID = d['ID'];
+        d.edges = d['edges']
+      });
+    }).then(function(data) {  
+      //
+    }).catch(function(error) {
+      console.log(error);
+    }); */
+
+    
+
+    function firstGraph() {
+      
+      const data = JSON.parse(submissionData);
+      data.forEach(function(d) {
+        d.ID = d['ID'];
+        d.edges = d['edges']
+        d.title = d['title']
+      });
+      //console.log('firstGraph: ', data);
+      const vars = []
+      //const head = ['source','target','value']
+      //vars.push(head)
+      for (let i = 0; i < data.length; i++) {
+        for (let j = 0; j < data[i]['edges'].length; j++) {
+          var a = [data[i]['ID'], data[i]['edges'][j], 1,data[i]['title']]
+          vars.push(a)
+        }
+      }
+      //console.log(documentids)
+      var links = vars;
+
+      var nodes = {};
+
+      // compute the distinct nodes from the links.
+      links.forEach(function (link) {
+        link.source = link[0]
+        link.target = link[1]
+        link.value = link[2]
+        link.title = link[3]
+        link.source = nodes[link.source] || (nodes[link.source] = { name: link.source });
+        link.target = nodes[link.target] || (nodes[link.target] = { name: link.target });
+      });
+      //console.log(links[2])
+
+
+
+
+      var width = 400,
+        height = 400;
+
+      var force = d3.forceSimulation()
+        .nodes(d3.values(nodes))
+        .force("link", d3.forceLink(links).distance(100))
+        .force('left', d3.forceCenter(200, 200))
+        .force("x", d3.forceX())
+        .force("y", d3.forceY())
+        .force("charge", d3.forceManyBody().strength(-250))
+        .alphaTarget(1)
+        .on("tick", tick);
+
+      var svg = d3.select("body").append("svg")
+        .attr("width", width)
+        .attr("height", height)
+        .attr("id","svg1")
+
+      svg.append("text")
+        .attr("x", (width / 5))
+        .attr("y", 50)
+        .attr("text-anchor", "center")
+        .style("font-size", "30px")
+        .text("Covid19 Network Graph");
+
+
+      links.forEach(function (link) {
+        if (link.value == 0) {
+          link.type = "grey";
+        } else {
+          link.type = "green";
+        }
+      })
+
+      var colors = d3.scaleLinear().domain([1, 10])
+        .range(["white", "orange"])
+
+      // add the links
+      var path = svg.append("g")
+        .selectAll("path")
+        .data(links)
+        .enter()
+        .append("path")
+        .attr("class", function (d) { return "link " + d.type; });
+
+
+      //console.log(links[2])
+      //.attr("class", function(d) { return "link " + d.type; });
+
+
+
+      // define the nodes
+      var node = svg.selectAll(".node")
+        .data(force.nodes())
+        .enter().append("g")
+        .attr("class", "node")
+        .on("dblclick", dblclick)
+        .call(d3.drag()
+          .on("start", dragstarted)
+          .on("drag", dragged)
+          .on("end", dragended));
+
+      // add the nodes
+      node.append("circle")
+        //.attr("id", function(d){
+        // return (d.name.replace(/\s+/g,'').toLowerCase());
+        //})
+        .attr("r", function (d) {
+          d.weight = path.filter(function (l) {
+            return l.source.index == d.index || l.target.index == d.index
+          }).size();
+          //console.log(d.weight)      
+          var minRadius = 5;
+          return minRadius + (d.weight *1);
+        })
+        .style("fill", function (d) {
+          d.weight = path.filter(function (l) {
+            return l.source.index == d.index || l.target.index == d.index
+          }).size();
+          return colors(d.weight)
+        })
+
+
+
+      node.append("text")
+        .attr("text-anchor", "center")
+        .style("font-size", "30px")
+        .text(function (d) {
+          return (d.name);
+        });
+
+      var tip;
+
+      node.on("click", function(d){
+
+        if (tip) tip.remove();
+    
+        tip  = svg.append("g")
+          .attr("transform", "translate(" + d.x  + "," + d.y + ")");
+    
+        var rect = tip.append("rect")
+          .style("fill", "white")
+          .style("stroke", "steelblue");
+    
+        /*tip.append("text")
+          .text("Name: " + d.name)
+          .attr("dy", "1em")
+          .attr("x", 5);*/
+        
+        title = JSON.parse(submissionData).filter(a=> a.ID==d.name)[0]['title']
+
+        tip.append("text")
+          .text("Title: " + title)
+          .attr("dy", "2em")
+          .attr("x", 5);
+    
+      });
+      
+      // add the curvy lines
+      function tick() {
+        path.attr("d", function (d) {
+          var dx = d.target.x - d.source.x,
+            dy = d.target.y - d.source.y,
+            dr = Math.sqrt(dx * dx + dy * dy);
+          return "M" +
+            d.source.x + "," +
+            d.source.y + "A" +
+            dr + "," + dr + " 0 0,1 " +
+            d.target.x + "," +
+            d.target.y;
+        });
+
+        node.attr("transform", function (d) {
+          return "translate(" + d.x + "," + d.y + ")";
+        });
+      };
+
+
+      function dragstarted(d) {
+        if (!d3.event.active) force.alphaTarget(0.3).restart();
+        d.fx = d.x;
+        d.fy = d.y;
+      };
+
+      function dragged(d) {
+        d.fx = d3.event.x;
+        d.fy = d3.event.y;
+        d3.select(this).select("circle").transition()
+          .style("fill", "yellow");
+      };
+
+      function dragended(d) {
+        d.fx = d3.event.x;
+        d.fy = d3.event.y;
+        d3.select(this).select("circle").transition()
+          .style("fill", "yellow");
+      };
+
+      function dblclick(d) {
+        d.fx = null;
+        d.fy = null;
+        d3.select(this).select("circle").transition()
+          .style("fill", "orange");
+      };
+
+      // ABove force directged graph 
+
+      // set the dimensions and margins of the graph
+      var margin = { top: 10, right: 30, bottom: 30, left: 60 },
+      width = 460 - margin.left - margin.right,
+      height = 400 - margin.top - margin.bottom;
+
+      // append the svg object to the body of the page
+      var svg2 = d3.select("body")
+        .append("svg")
+        .attr("id","svg2")
+        .attr("width", width + margin.left + margin.right)
+        .attr("height", height + margin.top + margin.bottom)
+        .append("g")
+        
+        .attr("transform",
+          "translate(" + margin.left + "," + margin.top + ")");
+
+      svg2.append("text")
+          .attr("x", (width / 10))
+          .attr("y", 20)
+          .attr("text-anchor", "left")
+          .style("font-size", "30px")
+          .text("PCA Plot");
+
+      //const data = JSON.parse(submissionData);
+      var dataset = data
+      var documentids = []
+      for (var i in dataset)
+            documentids.push(dataset[i].ID)
+      //console.log("documentids")
+      //console.log(documentids)
+
+      //Read the data
+      d3.csv("/static/principal_components_10k.csv").then(function (data) {
+      //console.log("length"+documentids.length)
+      var pca_reldocs = data.filter(function (row){
+          for (var i=0;i<=documentids.length-1; i++){
+            //console.log(documentids[i])
+            if (row['index'] == documentids[i]){return true;}
+          }
+          return false  
+        })
+        //console.log(pca_reldocs)
+        // Add X axis
+        var x = d3.scaleLinear()
+          .domain([
+            d3.min(data, function (d) {
+              return -0.7
+              //return d.principal_component1
+            }),
+            d3.max(data, function (d) {
+              return d.principal_component1
+            })
+          ])
+          //.domain([0, 4000])
+          .range([0, width])
+          
+          
+        svg2.append("g")
+          .attr("transform", "translate(0," + height + ")")
+          .style("font-size", "20px")
+          .call(d3.axisBottom(x));
+
+        svg2.append("text")
+          .attr("class", "x label")
+          .attr("text-anchor", "end")
+          .attr("x", width)
+          .attr("y", height - 3)
+          .style("font-size", "30px")
+          .text("Principal Component-1");
+          
+
+        // Add Y axis
+        var y = d3.scaleLinear()
+          .domain([
+            d3.min(data, function (d) {
+              return -0.9
+              //return d.principal_component2
+            }),
+            d3.max(data, function (d) {
+              return d.principal_component2
+            })
+          ])
+          //.domain([0, 500000])
+          .range([height, 0])
+          
+        svg2.append("g")
+          .style("font-size", "20px")
+          .call(d3.axisLeft(y));
+        
+        svg2.append("text")
+          .attr("class", "y label")
+          .attr("text-anchor", "end")
+          .attr("y", 6)
+          .attr("dy", ".75em")
+          .attr("transform", "rotate(-90)")
+          .style("font-size", "30px")
+          .text("Principal Component-2");
+
+        // Add dots
+        svg2.append('g')
+          .selectAll("dot")
+          .data(data)
+          .enter()
+          .append("circle")
+          .attr("cx", function (d) { return x(d.principal_component1); })
+          .attr("cy", function (d) { return y(d.principal_component2); })
+          .attr("r", 1.5)
+          .style("fill", "#FF0000")
+          .attr("class", "redot")
+
+          svg2.append('g')
+          .selectAll("dot2")
+          .data(pca_reldocs)
+          .enter()
+          .append("circle")
+          .attr("cx", function (d) { return x(d.principal_component1); })
+          .attr("cy", function (d) { return y(d.principal_component2); })
+          .attr("r", 5)
+          .style("fill", "#00FF00")
+          .attr("class", "greedot")
+
+     })
+    }
+
+    function topicChart(submissionData) {
+      const data = JSON.parse(submissionData);
+      var docIds = []
+      data.forEach(function(d) {
+        docIds.push(d['ID'].toString())
+      });
+
+      // set the dimensions and margins of the graph
+      var margin = {top: 100, right: 100, bottom: 50, left: 100};
+      var width = 1200 - margin.left - margin.right;
+      var height = 500 - margin.top - margin.bottom;
+
+      var svg = d3.select("body").append("svg")
+              .attr("id","svg3")
+              .attr("width", width + margin.left + margin.right)
+              .attr("height", height + margin.top + margin.bottom)
+              .append("g")
+              .attr("transform",
+                      "translate(" + margin.left + "," + margin.top + ")");
+
+      svg.append("text")
+              .attr("x", (width / 2))
+              .attr("y", -30)
+              .attr("text-anchor", "middle")
+              .style("font-size", "20px")
+              .text("Topic Model");
+
+      var plot = svg.append("g");
+
+      var colorArray = [d3.schemeCategory10, d3.schemeAccent];
+      var colorScheme = d3.scaleOrdinal(colorArray[0]);
+
+      //Read the data
+      d3.csv("static/trained_lda_10000.csv").then(function (data) {
+        // Skip the first column which is "id".
+        var topics = data.columns.slice(1);
+
+        // set the ranges
+        var x = d3.scalePoint().domain(topics).range([0, width]);
+        var y = d3.scaleLinear().domain([0, 1]).range([height, 0]);
+
+        // Add lines and legend.
+        var lineCount = 0;
+        data.forEach(function (d) {
+          if (docIds.includes(d.id)) {
+            var points = []
+            topics.forEach(function (column) {
+              points.push({
+                'x': column,
+                'y': d[column]
+              })
+            });
+
+            plot.append("path")
+                    .data([points])
+                    .attr("class", "line")
+                    .style("stroke", colorScheme(lineCount))
+                    .attr("d", d3.line()
+                            .x(function (d) {
+                              return x(d['x']);
+                            })
+                            .y(function (d) {
+                              return y(d['y']);
+                            }));
+
+            plot.append("text")
+                    .attr("transform", "translate(" + (width-50) + "," + lineCount*17 + ")")
+                    .attr("dy", ".35em")
+                    .style("font-size", "12px")
+                    .attr("text-anchor", "start")
+                    .style("fill", colorScheme(lineCount))
+                    .text('paper' + d.id);
+
+            lineCount++;
+          }
+        });
+
+        // Add the X Axis
+        var xAxis = plot.append("g")
+                .attr("transform", "translate(0," + height + ")");
+        xAxis.call(d3.axisBottom(x));
+        xAxis.append("text")
+                .attr("x", (width / 2))
+                .attr("y", 45)
+                .style("fill", "black")
+                .style("text-anchor", "middle")
+                .style("font-size", "25px")
+                .text("Topic");
+
+        // Add the Y Axis
+        var yAxis = plot.append("g");
+        yAxis.call(d3.axisLeft(y));
+        yAxis.append("text")
+                .attr("transform",
+                        "translate(" + -40 + "," + (height / 2) + ") rotate(-90) ")
+                .style("fill", "black")
+                .style("text-anchor", "middle")
+                .style("font-size", "25px")
+                .text("Weight");
+      })
+    }
+
+
+    //search bar
+    function afterClick() {
+      d3.select('#svg1').remove();
+      d3.select('#svg2').remove();
+      d3.select('#svg3').remove();
+      
+      // changed target to focus search
+      //console.log('inside afterClick');
+      var loadingBar = document.getElementById('progress');
+      loadingBar.textContent = `Loading visualization please wait...`;
+      async function getDocuments() {
+        var terms = document.getElementById("search").value.split(' ').join('+');
+        const response = await fetch(`http://127.0.0.1:8080/swagger/COVID-19 Knowledge Graph/getrelevanttitles?querystr=${terms}`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        
+        submissionData = await response.json();
+        loadingBar.textContent = ``;
+        //console.log(submissionData);
+        firstGraph();
+        topicChart(submissionData);
+      }
+
+      getDocuments();
+    }
+
+    document.getElementById('submitButton').addEventListener("click", () => afterClick());
+
+    document.addEventListener('DOMContentLoaded', function() {
+      afterClick();
+  }, false);
+
+
+  </script>
+</body>
+
+</html>

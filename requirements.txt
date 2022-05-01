@@ -1,0 +1,12 @@
+# pip install -r requirements.txt
+flask
+flask_restx
+pandas
+transformers
+sklearn
+torch
+torchvision
+gensim
+nltk
+pyLDAvis
+

@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<script type="text/javascript" src="../lib/d3.v5.min.js"></script>
+<style>
+* {box-sizing: border-box;}
+body {
+    text-align: center;
+  font-family: Arial, Helvetica, sans-serif;
+}
+.topnav {
+  overflow: hidden;
+  background-color: #7690e9;
+}
+.topnav input[type=text] {
+    margin: 0 auto;
+    display: inline-block;
+    margin-top: 6px;
+  margin-bottom: 6px;
+}
+.topnav input[type=text] {
+    border: 1px solid #ccc;  
+  }
+path.link {
+  fill: none;
+  stroke: rgb(27, 27, 27);
+}
+path.link.grey{
+    stroke-width: 3.0px;
+    stroke: rgb(133, 130, 130);
+  }
+path.link.green{
+    stroke-width: 1.5px;
+    stroke: rgb(25, 221, 146);
+    stroke-dasharray: 5,3;
+  }
+circle {
+  fill: #ccc;
+  stroke: #fff;
+  stroke: black;
+  stroke-width: 1.5px;
+}
+
+text {
+  fill: #000;
+  font: 8px sans-serif;
+  pointer-events: none;
+}
+.line {
+  fill: none;
+  stroke: steelblue;
+  stroke-width: 2px;
+}
+
+</style>
+<div class="topnav">
+  <a >Query</a>
+  <input type="text" placeholder="Search.." size="80">
+  <button type="submit"><i class="fa fa-search"></i></button>
+</div>
+
+ <!-- Load icon library -->
+ <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+
+</div>
+<head>
+<title></title></head>
+<body>
+<script>
+
+
+d3.json("Nodes-edges-example.json", function(data) {
+    data.forEach(function(d) {
+		d.ID = d['ID'];
+    d.edges = d['edges']
+    d.title = d['title']
+	});
+}).then(function(data) {
+   const vars = []
+   for(let i=0; i<data.length; i++) {
+    for(let j=0; j<data[i]['edges'].length; j++)
+    {var a = [data[i]['ID'],data[i]['edges'][j],1,data[i]['title']]
+    vars.push(a)
+}}
+
+
+  var links = vars;
+
+  var nodes = {};
+  // compute the distinct nodes from the links.
+  links.forEach(function(link) {
+      link.source = link[0]
+      link.target = link[1]
+      link.title = link[3]
+      link.source = nodes[link.source] || (nodes[link.source] = {name: link.source});
+      link.target = nodes[link.target] || (nodes[link.target] = {name: link.target});
+  });
+
+  var width = 1200,
+      height = 700;
+
+  var force = d3.forceSimulation()
+      .nodes(d3.values(nodes))
+      .force("link", d3.forceLink(links).distance(100))
+      .force('center', d3.forceCenter(width / 2, height / 2))
+      .force("x", d3.forceX())
+      .force("y", d3.forceY())
+      .force("charge", d3.forceManyBody().strength(-250))
+      .alphaTarget(1)
+      .on("tick", tick);
+
+  var svg = d3.select("body").append("svg")
+      .attr("width", width)
+      .attr("height", height)
+
+  links.forEach(function(link) {
+	if (link.value ==0) {
+		link.type = "grey";
+	} else {
+		link.type = "green";}})
+
+  var colors = d3.scaleLinear().domain([1,10])
+  .range(["white", "blue"])
+
+  // add the links
+  var path = svg.append("g")
+      .selectAll("path")
+      .data(links)
+      .enter()
+      .append("path")
+      .attr("class", function(d) { return "link " + d.type; });
+       
+    // define the nodes
+  var node = svg.selectAll(".node")
+      .data(force.nodes())
+      .enter().append("g")
+      .attr("class", "node")
+      .on("dblclick", dblclick)
+      .call(d3.drag()
+          .on("start", dragstarted)
+          .on("drag", dragged)
+          .on("end", dragended));
+
+  // add the nodes
+  node.append("circle")
+      .attr("r", function(d) {      
+     d.weight = path.filter(function(l) {
+       return l.source.index == d.index || l.target.index == d.index
+     }).size();     
+     var minRadius = 5;
+     return minRadius + (d.weight * 2.5);
+   })
+      .style("fill",function(d) { d.weight = path.filter(function(l) {
+       return l.source.index == d.index || l.target.index == d.index
+     }).size();     
+     return colors(d.weight)
+     })
+     
+  node.append("text")
+        .attr("text-anchor", "end")
+        .text(function(d) {
+        return (d.name);
+        });
+  node.append("text")
+        .attr("text-anchor", "start")
+        .text(function(d) {
+        return (links.find(element => element[0] == d.name)[3]);
+        });
+  // add the curvy lines
+  function tick() {
+      path.attr("d", function(d) {
+          var dx = d.target.x - d.source.x,
+              dy = d.target.y - d.source.y,
+              dr = Math.sqrt(dx * dx + dy * dy);
+          return "M" +
+              d.source.x + "," +
+              d.source.y + "A" +
+              dr + "," + dr + " 0 0,1 " +
+              d.target.x + "," +
+              d.target.y;
+      });
+
+      node.attr("transform", function(d) {
+          return "translate(" + d.x + "," + d.y + ")"; 
+      });
+  };
+
+  function dragstarted(d) {
+      if (!d3.event.active) force.alphaTarget(0.3).restart();
+      d.fx = d.x;
+      d.fy = d.y;
+  };
+
+  function dragged(d) {
+      d.fx = d3.event.x;
+      d.fy = d3.event.y;
+      d3.select(this).select("circle").transition()
+        .style("fill", "yellow");};
+
+  function dragended(d) {
+    d.fx = d3.event.x;
+    d.fy = d3.event.y;
+    d3.select(this).select("circle").transition()
+          .style("fill", "yellow");};
+
+  function dblclick(d) {
+    d.fx = null;
+    d.fy = null;
+    d3.select(this).select("circle").transition()
+          .style("fill", "blue");};
+}).catch(function(error) {
+  console.log(error);
+});
+
+
+
+
+//PCA GRAPH
+
+// set the dimensions and margins of the graph
+var margin = {top: 10, right: 30, bottom: 30, left: 60},
+        width = 460 - margin.left - margin.right,
+        height = 400 - margin.top - margin.bottom;
+    
+    // append the svg object to the body of the page
+var svg2 = d3.select("body")
+      .append("svg")
+        .attr("width", width + margin.left + margin.right)
+        .attr("height", height + margin.top + margin.bottom)
+      .append("g")
+        .attr("transform",
+              "translate(" + margin.left + "," + margin.top + ")");
+    
+    
+var x2 = d3.scaleLinear()
+        .domain([0, 4000])
+        .range([ 0, width ]);
+svg2.append("g")
+        .attr("transform", "translate(0," + height + ")")
+        .call(d3.axisBottom(x2));
+    
+      // Add Y axis
+var y2 = d3.scaleLinear()
+        .domain([0, 500000])
+        .range([ height, 0]);
+svg2.append("g")
+        .call(d3.axisLeft(y2));
+
+
+</script>
+</body>
+</html>
